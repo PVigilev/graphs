@@ -64,74 +64,59 @@ namespace Graphs
 
         // Dijkstra for from "from" to "to"
 
-        private void Dijkstra(Vertex from, out Dictionary<Vertex, uint> end_distances, out Dictionary<Vertex, Vertex> paths)
+        private void Dijkstra(Vertex from, out Dictionary<Vertex, uint> end_distances, out Dictionary<Vertex, Vertex> prev)
         {
             // initialization
+            
+            end_distances = new Dictionary<Vertex, uint>(AdjList.Count);
+            prev = new Dictionary<Vertex, Vertex>(AdjList.Count);
+            VertexPriorityQueue queue = new VertexPriorityQueue(AdjList.Values.ToArray(), from);
 
-            // the shortest distance to the each vertex we found
-            end_distances = new Dictionary<Vertex, uint>();
-            // remember the previous vertex for each vertex
-            paths = new Dictionary<Vertex, Vertex>();
-            paths.Add(from, null);
-            Vertex[] _vertices = AdjList.Values.ToArray();
-            uint[] _distances = new uint[_vertices.Length];
-            int from_i = 0;
-            for (int i = 0; i < _distances.Length; i++)
+            foreach (Vertex v in AdjList.Values)
             {
-                if (_vertices[i] == from)
-                    from_i = i;
-                _distances[i] = uint.MaxValue;
+                prev.Add(v, null);
             }
-            _distances[from_i] = 0;
-            VertexPriorityQueue queue = new VertexPriorityQueue(_vertices, _distances);
+            
+            
+            // Dijkstra as it is
 
-            // Dijkstra
             while (queue.heapsize > 0)
             {
-                VertexPriorityQueue.Pair u = queue.ExtractMin();
-                end_distances.Add(u.v,u.d);
+                KeyValuePair<Vertex, uint> u = queue.ExtractMin();
+                end_distances.Add(u.Key, u.Value);
 
-                foreach (KeyValuePair<Vertex,uint> v in u.v.Adj)
+                //relaxation
+                foreach (KeyValuePair<Vertex,uint> v in u.Key.Adj)
                 {
-                    // relaxation
-                    uint new_distance_to_v = end_distances[u.v] + v.Value;
-                    // if we have already found v
                     if (end_distances.ContainsKey(v.Key))
                     {
-                        if (end_distances[v.Key] > new_distance_to_v)
+                        if (end_distances[v.Key] > u.Value + u.Key.Adj[v.Key])
                         {
-                            end_distances[v.Key] = new_distance_to_v;
-                            paths[v.Key] = u.v;
+                            end_distances[v.Key] = u.Value + u.Key.Adj[v.Key];
                         }
                     }
-                    // if v is still in queue
                     else
                     {
-                        // if it's still in queue
-                        // getting vertex-distance-pair (it's not null), relax it and put back
-                        VertexPriorityQueue.Pair dv = queue[v.Key].Value;
-
-                        if (dv.d > new_distance_to_v)
+                        if (queue[v.Key] > u.Value + u.Key.Adj[v.Key])
                         {
-                            dv.d = new_distance_to_v;
-                            queue.DecreaseKey(dv);
-                            paths[v.Key] = u.v;
+                            queue.DecreaseKey(v.Key, u.Value + u.Key.Adj[v.Key]);
                         }
-
                     }
-
+                    prev[v.Key] = u.Key;
                 }
-
-
+                
             }
+
+
+
         }
 
         public uint GetShortestPath(string f, string t, out LinkedList<string> path)
         {
             Dictionary<Vertex, uint> end_distances;
-            Dictionary<Vertex, Vertex> paths;
+            Dictionary<Vertex, Vertex> prev;
             Vertex from = AdjList[f], to = AdjList[t];
-            Dijkstra(from, out end_distances, out paths);
+            Dijkstra(from, out end_distances, out prev);
             uint dist = end_distances[to];
 
             // if the vertex "to" is not reachable
@@ -142,7 +127,7 @@ namespace Graphs
             }
 
             path = new LinkedList<string>();
-            for (Vertex cur = to; cur != null; cur = paths[cur])
+            for (Vertex cur = to; cur != null; cur = prev[cur])
             {
                 path.AddFirst(cur.Name);
             }

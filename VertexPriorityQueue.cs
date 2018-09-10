@@ -1,33 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 
 namespace Graphs
 {
     // min-heap
     public class VertexPriorityQueue
     {
-        private Vertex[] vertices;
-        private uint[] dist;
-        private int _heapsize;
-
-        //real size of the heap
-        public int heapsize => _heapsize;
-
-
-        public VertexPriorityQueue(Vertex[] vertices, uint[] dist)
-        {
-            if(vertices.Length != dist.Length)
-                throw new Exception("Something went wrong!");
-            _heapsize = vertices.Length;
-            this.vertices = vertices;
-            this.dist = dist;
-
-            // build min-heap;
-            for (int i = heapsize / 2; i >= 0; i--)
-            {
-                Heapify(i);
-            }
-        }
-
         private int parent(int i)
             => i / 2;
         private int left(int i)
@@ -35,99 +15,120 @@ namespace Graphs
         private int right(int i)
             => 2 * i + 2;
 
+        private uint[] distances;
+        private Vertex[] vertices;
+        private Dictionary<Vertex, int> VtoI; // from Vertices to indeces in the dist
+        private int _heapsize;
+        //real size of the heap
+        public int heapsize => _heapsize;
+
+        public VertexPriorityQueue(Vertex[] vertices, Vertex start)
+        {
+            VtoI = new Dictionary<Vertex, int>();
+            _heapsize = vertices.Length;
+            this.vertices = vertices;
+            distances = new uint[this.vertices.Length];
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                VtoI.Add(vertices[i], i);
+                if (start == vertices[i])
+                {
+                    VtoI[start] = i;
+                    distances[i] = 0;
+                }
+                else
+                {
+                    distances[i] = uint.MaxValue;
+                    VtoI[vertices[i]] = i;
+                }
+            }
+            
+            // building heap
+            for (int i = _heapsize / 2; i > 0; i--)
+            {
+                Heapify(i);
+            }
+        }
+
+        private void Swap(int i, int j)
+        {
+            VtoI[vertices[i]] = j;
+            VtoI[vertices[j]] = i;
+            
+            uint dt = distances[i];
+            distances[i] = distances[j];
+            distances[j] = dt;
+
+            Vertex vt = vertices[i];
+            vertices[i] = vertices[j];
+            vertices[j] = vt;
+        }
+        
+        // Heap-functions
+
         private void Heapify(int i)
         {
             int l = left(i), r = right(i);
-            int min;
-            if (l < heapsize && dist[l] < dist[i])
-                min = l;
-            else min = i;
-            if (r < heapsize && dist[r] < dist[min])
-                min = r;
+            
+            //find min of the i, l, r
+            int min = i;
+            if (l < heapsize)
+            {
+                if (distances[l] < distances[i])
+                {
+                    min = l;
+                }
+            }
+
+            if (r < heapsize)
+            {
+                if (distances[r] < distances[min])
+                {
+                    min = r;
+                }
+            }
+
             if (min != i)
             {
-                // swap in dist
-                uint tmp = dist[i];
-                dist[i] = dist[min];
-                dist[min] = tmp;
-                // swap in vertices
-                Vertex t = vertices[i];
-                vertices[i] = vertices[min];
-                vertices[min] = t;
+                Swap(i, min);
                 Heapify(min);
             }
-
-
         }
 
-        public struct Pair
+        public void DecreaseKey(Vertex v, uint d)
         {
-            public Vertex v { get; }
-            public uint d { get; set; }
-            public Pair(Vertex v, uint d)
+            int i = VtoI[v];
+            if(d > distances[i])
+                throw new Exception("Error in decreasing key");
+
+            distances[i] = d;
+            while (i > 0 && distances[parent(i)] > distances[i])
             {
-                this.v = v;
-                this.d = d;
+                Swap(i, parent(i));
+                i = parent(i);
             }
+
         }
 
-        public Pair ExtractMin()
+        public KeyValuePair<Vertex, uint> ExtractMin()
         {
-            if(heapsize == 0)
-                throw new Exception("Queue is empty");
-            Pair max = new Pair(vertices[0], dist[0]);
-            dist[0] = dist[heapsize - 1];
+            if(heapsize < 1)
+                throw new Exception("Heap underflow");
+            
+            KeyValuePair<Vertex, uint> res = new KeyValuePair<Vertex, uint>(vertices[0], distances[0]);
             vertices[0] = vertices[heapsize - 1];
+            distances[0] = distances[heapsize - 1];
+            VtoI.Remove(res.Key);
+            VtoI[vertices[heapsize - 1]] = 0;
             _heapsize--;
             Heapify(0);
-            return max;
+            
+            return res;
         }
 
-        private void DecreaseKey(int i, uint d)
+        public uint this[Vertex v]
         {
-            if (d > dist[i])
-                throw new Exception($"New distance is greater than current ({d} > {dist[i]})");
-            dist[i] = d;
-            for (; i > 0 && dist[parent(i)] > dist[i]; i = parent(i))
-            {
-                // swap in dist
-                uint tmp = dist[i];
-                dist[i] = dist[parent(i)];
-                dist[parent(i)] = tmp;
-                // swap in vertices
-                Vertex t = vertices[i];
-                vertices[i] = vertices[parent(i)];
-                vertices[parent(i)] = t;
-            }
-        }
-
-        public void DecreaseKey(Pair v)
-        {
-            for (int i = 0; i < heapsize; i++)
-            {
-                if (vertices[i] == v.v)
-                {
-                    DecreaseKey(i, v.d);
-                    break;
-                }
-            }
-
-        }
-
-        public Pair? this[Vertex v]
-        {
-            get
-            {
-                for (int i = 0; i < heapsize; i++)
-                {
-                    if (vertices[i] == v)
-                    {
-                        return new Pair(v, dist[i]);
-                    }
-                }
-
-                return null;
-            }
+            get { return distances[VtoI[v]]; }
         }
     }
 }
